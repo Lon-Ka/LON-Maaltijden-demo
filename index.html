@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>LON-Maaltijden</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+/* Layout: app shell — top bar with who/where/when, a tab row, one working column up to 1180px */
+:root{
+  --bg:#f3f6fb; --surface:#ffffff; --sunk:#eaeff7; --line:#d6deeb; --line-soft:#e6ebf3;
+  --fg:#15213a; --muted:#56637f; --faint:#8592ab;
+  --accent:#1d55c4; --accent-ink:#ffffff; --accent-soft:#e2ebfb;
+  --kleuter:#7b4cc8; --kleuter-soft:#efe7fb;
+  --ok:#1b7546; --ok-soft:#e0f2e7; --warn:#9a5800; --warn-soft:#fcefd6; --bad:#b0242d; --bad-soft:#fbe4e5;
+  --f-display:'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --f-body:'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1524; --surface:#161e30; --sunk:#1c2539; --line:#2b3650; --line-soft:#232d44;
+  --fg:#e6ebf5; --muted:#a3aec6; --faint:#76829c;
+  --accent:#7aa5f5; --accent-ink:#0f1524; --accent-soft:#1f2f52;
+  --kleuter:#b694f0; --kleuter-soft:#2c2347;
+  --ok:#6fcf98; --ok-soft:#173527; --warn:#f0b65c; --warn-soft:#3a2b12; --bad:#f08b90; --bad-soft:#3d1c20;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0f1524; --surface:#161e30; --sunk:#1c2539; --line:#2b3650; --line-soft:#232d44;
+  --fg:#e6ebf5; --muted:#a3aec6; --faint:#76829c;
+  --accent:#7aa5f5; --accent-ink:#0f1524; --accent-soft:#1f2f52;
+  --kleuter:#b694f0; --kleuter-soft:#2c2347;
+  --ok:#6fcf98; --ok-soft:#173527; --warn:#f0b65c; --warn-soft:#3a2b12; --bad:#f08b90; --bad-soft:#3d1c20;
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:0 48px}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h2{font-size:18px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* demo strip + top bar */
+.demo{margin-top:12px;background:var(--warn-soft);color:var(--fg);border:1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius:var(--r);padding:8px 12px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+.demo b{color:var(--warn)}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:18px 0 14px}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.brand h1{font-size:22px;font-weight:700}
+.brand .sub{font-size:12.5px;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.field select{text-transform:none;letter-spacing:0;font-weight:500;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+.who{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 6px;font-size:13px}
+.who .dot{width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:12px}
+
+/* tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+.tab{background:none;border:0;padding:10px 14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab .badge{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:999px;background:var(--warn-soft);color:var(--warn);font-size:11px;font-weight:700;text-align:center}
+main{padding-top:20px;display:flex;flex-direction:column;gap:20px}
+
+/* cards & blocks */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.card-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.card-head p{margin:0;font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.stat .k{font-size:12px;color:var(--muted);font-weight:500}
+.stat .v{font-family:var(--f-display);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2;margin-top:2px}
+.stat .s{font-size:12px;color:var(--faint)}
+
+.deadline{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:var(--r);padding:16px 18px}
+.cal{width:62px;border-radius:8px;overflow:hidden;background:var(--surface);border:1px solid var(--line);text-align:center}
+.cal .m{background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 0}
+.cal .d{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.25}
+.cal .t{font-size:11px;color:var(--muted);padding-bottom:3px}
+.deadline h2{font-size:17px}
+.deadline p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.later{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.later b{color:var(--fg);font-weight:600}
+
+/* pills & buttons */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.mute{background:var(--sunk);color:var(--muted)}
+.pill.kl{background:var(--kleuter-soft);color:var(--kleuter)} .pill.lg{background:var(--accent-soft);color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:500;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.small{padding:4px 9px;font-size:12.5px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* attention list */
+.att{display:flex;flex-direction:column;gap:10px}
+.att-item{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px;border:1px solid var(--line-soft);border-radius:8px;background:var(--bg)}
+.att-item .ico{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;grid-row:span 2}
+.att-item .ico.warn{background:var(--warn-soft);color:var(--warn)} .att-item .ico.info{background:var(--accent-soft);color:var(--accent)}
+.att-item p{margin:0;font-size:13px;color:var(--muted)}
+.att-item .row{grid-column:2;margin-top:4px}
+
+/* per-day bars */
+.bars{display:flex;gap:6px;align-items:flex-end;min-height:180px;padding-top:6px;overflow-x:auto}
+.bar{flex:1 0 34px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar .stack{width:100%;max-width:38px;display:flex;flex-direction:column-reverse;border-radius:5px 5px 2px 2px;overflow:hidden;background:var(--sunk)}
+.bar .seg.kl{background:var(--kleuter)} .bar .seg.lg{background:var(--accent)}
+.bar .n{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar .lbl{font-size:11px;color:var(--muted);text-align:center;line-height:1.2;white-space:nowrap}
+.bar .soup{font-size:10.5px;color:var(--faint)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+thead th{background:var(--sunk);font-weight:600;font-size:12px;color:var(--muted);position:sticky;top:0}
+tbody tr:hover td{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+td.r,th.r{text-align:right}
+td.c,th.c{text-align:center}
+tfoot td{font-weight:700;background:var(--sunk);border-bottom:0}
+.sec td{background:var(--bg);font-weight:600;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.mtx th.day,.mtx td.day{text-align:center;padding:5px 4px;min-width:42px}
+.mtx th.day small{display:block;font-weight:500;color:var(--faint);font-size:11px}
+.mtx td.name{position:sticky;left:0;background:var(--surface);z-index:1}
+.mtx thead th.name{position:sticky;left:0;z-index:2}
+.mtx tfoot td.name{background:var(--sunk)}
+.cell{width:30px;height:26px;border-radius:6px;border:1px dashed transparent;background:none;cursor:pointer;font-weight:700;font-size:13px;line-height:1}
+.cell:hover{border-color:var(--line)}
+.cell.on{background:var(--accent-soft);color:var(--accent)}
+.cell.on.kl{background:var(--kleuter-soft);color:var(--kleuter)}
+.cell.extra{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}
+.cell.af{background:var(--bad-soft);color:var(--bad);text-decoration:line-through;border:1px solid var(--bad)}
+.cell[disabled]{cursor:default}
+.vw td{color:var(--muted);font-style:italic}
+
+/* menu */
+.weeks{display:flex;flex-direction:column;gap:14px}
+.week h3{font-size:13px;color:var(--muted);font-weight:600;margin-bottom:6px;font-family:var(--f-body);text-transform:uppercase;letter-spacing:.05em}
+.wk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.dish{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 11px;font-size:12.5px;min-width:0}
+.dish .dh{font-weight:600;font-size:12px;color:var(--muted);margin-bottom:4px}
+.dish .soep{color:var(--ok);font-weight:600}
+.dish .des{color:var(--faint)}
+.dish ul{margin:2px 0;padding-left:16px}
+.dish.none{background:var(--sunk);color:var(--faint);display:grid;place-items:center;text-align:center}
+@media (max-width:760px){ .wk{grid-template-columns:repeat(2,minmax(0,1fr))} .dish.none{display:none} }
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--bg)}
+.files{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.files li{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px;padding:6px 10px;border:1px solid var(--line-soft);border-radius:6px;background:var(--surface);min-width:0}
+.files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* parent form */
+.form{display:flex;flex-direction:column;gap:16px;max-width:640px}
+.q{display:flex;flex-direction:column;gap:6px}
+.q > label,.q > .ql{font-weight:600}
+.q input[type=text],.q select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface)}
+.choice{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+.choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.choice small{display:block;color:var(--muted)}
+.daygrid{display:grid;grid-template-columns:auto repeat(2,64px);gap:4px 8px;align-items:center;font-size:13px}
+.daygrid .h{font-size:12px;color:var(--muted);font-weight:600;text-align:center}
+.daygrid input{justify-self:center;width:18px;height:18px;accent-color:var(--accent)}
+.daylist{max-height:320px;overflow:auto;border:1px solid var(--line-soft);border-radius:8px;padding:8px 12px;background:var(--surface)}
+.note{font-size:13px;color:var(--muted);background:var(--sunk);border-radius:8px;padding:10px 12px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.toast{animation:up .18s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
+</style>
+
+<div class="wrap">
+  <div class="demo" role="note"><b>Demo</b><span>Met fictieve kinderen. Het menu is het echte novembermenu van het OCMW. Wat je hier aanpast, wordt niet bewaard.</span></div>
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8z"/><path d="M8 7c0-1.5 1-1.5 1-3M12 7c0-1.5 1-1.5 1-3M16 7c0-1.5 1-1.5 1-3"/></svg>
+      </div>
+      <div><h1>LON-Maaltijden</h1><div class="sub">MijnDigiLoket · warme maaltijden en soep</div></div>
+    </div>
+    <div class="controls">
+      <label class="field">Aangemeld als (demo)
+        <select id="user"></select>
+      </label>
+      <label class="field">Maand
+        <select id="month"></select>
+      </label>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <main id="main"></main>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+/* ---------- vaste gegevens ---------- */
+const MENU_RAW = {"2026-11-09":["Tomatensoep","Boomstammetje","Rode kool met appel","Aardappelen","Vleesjus","Fruit"],"2026-11-10":["Spinaziesoep","Kipfilet","Boterbonen","Gebakken aardappelen","Gevogeltejus","Pudding"],"2026-11-12":["Groentesoep","Kalkoenfilet","Spruiten met spek","Krieltjes","Jagersaus","Mousse"],"2026-11-13":["Aardappelsoep","Kibbeling","Preipuree","Remouladesaus","Yoghurt"],"2026-11-16":["Tomatensoep met basilicum","Burger","Broccolipuree","Vleesjus","Fruit"],"2026-11-17":["Pompoensoep","Hutespot","Aardappelen","Flan"],"2026-11-19":["Broccolisoep","Schnitzel","Schorseneren in bechamel","Aardappelen","Bruine saus","Mousse"],"2026-11-20":["Spruitensoep","Gebakken visfilet","Gestoofde wortelen","Aardappelen","Kervelsaus","Yoghurt"],"2026-11-23":["Tomatensoep","Blinde vink","Pompoenpuree","Vleesjus","Fruit"],"2026-11-24":["Groentesoep","Kalkoenfilet","Prinsessenbonen met ui","Gebakken aardappelen","Gevogeltejus","Pudding"],"2026-11-26":["Peterseliesoep","Pasta","Bolognaise","Mousse"],"2026-11-27":["Pompoensoep","Parmentier van vis","met spinazie","Yoghurt"],"2026-11-30":["Tomaten-groentesoep","Gevogelteworst","Wortelen met sjalot","Krieltjes","Gevogeltejus","Fruit"],"2026-12-01":["Paprikasoep","Balletjes in tomatensaus","met selder","Aardappelpuree","Pudding"],"2026-12-03":["Groentesoep","Kalkoenlapje","Prei in room","Aardappelen","Vleesjus","Mousse"],"2026-12-04":["Rapensoep","Visfilet","Knolselder","Lichte currysaus","Penne","Yoghurt"],"2026-12-07":["Tomatensoep","Gegratineerde hespenrollen","met witloof","Aardappelpuree","Fruit"],"2026-12-08":["Preisoep","Kipfilet","Groenterijst","Currysaus","Pudding"],"2026-12-10":["Courgettesoep","Burger","Gestoofde witte kool","Gebakken aardappelen","Vleesjus","Mousse"],"2026-12-11":["Paprikasoep","Visfilet","Spinazie","Aardappelen","Dijonaisesaus","Yoghurt"]};
+
+// Vrije dagen volgens de schoolkalender (in de echte app instelbaar door het secretariaat)
+const VRIJ = [["2026-11-02","2026-11-08","Herfstvakantie"],["2026-11-11","2026-11-11","Wapenstilstand"],["2026-12-21","2027-01-03","Kerstvakantie"]];
+const MAALTIJDDAGEN = [1,2,4,5]; // ma, di, do, vr — woensdag geen maaltijden
+const PRIJS = {soep:0.5, kleuter:3.5, lager:4.5};
+const SCHOOLS = {KO:"Kouterschool", TE:"School Ter Elst"};
+const KLASSEN = {KO:["1KKA","1KKB","2KKA","2KKB","3KKA","3KKB","1A","2A","3A","4A","5A","6A"], TE:["1A","2A","3A","4A","5A","6A"]};
+const USERS = [
+  {id:"christine", naam:"Christine", rol:"Secretariaat", school:"KO"},
+  {id:"farah", naam:"Farah De Clerck", rol:"Directie", school:"KO"},
+  {id:"elke", naam:"Elke", rol:"Secretariaat", school:"TE"},
+  {id:"rita", naam:"Rita", rol:"Secretariaat", school:"TE"},
+  {id:"pieter", naam:"Pieter", rol:"Directie", school:"TE"}];
+const MAANDEN = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+const DAGK = ["zo","ma","di","wo","do","vr","za"];
+const DAGL = ["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"];
+
+/* ---------- datums ---------- */
+const pad = n => String(n).padStart(2,"0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.slice(0,10).split("-").map(Number); return new Date(y,m-1,d); };
+const vrijOp = s => VRIJ.find(([a,b]) => s >= a && s <= b);
+const isSchooldag = d => d.getDay() !== 0 && d.getDay() !== 6 && !vrijOp(iso(d));
+const maandNaam = ym => `${MAANDEN[+ym.slice(5)-1]} ${ym.slice(0,4)}`;
+const kortDag = s => { const d = parse(s); return `${DAGK[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`; };
+const langeDatum = d => `${DAGL[d.getDay()]} ${d.getDate()} ${MAANDEN[d.getMonth()]}`;
+const addMonth = (ym, n) => { const d = new Date(+ym.slice(0,4), +ym.slice(5)-1+n, 1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; };
+
+function maaltijddagen(ym){
+  const [y,m] = ym.split("-").map(Number), out = [];
+  for (let d = new Date(y,m-1,1); d.getMonth() === m-1; d.setDate(d.getDate()+1))
+    if (MAALTIJDDAGEN.includes(d.getDay()) && isSchooldag(d)) out.push(iso(d));
+  return out;
+}
+// Deadline voor maand ym = voorlaatste schooldag van de maand ervoor, 09:00
+function deadline(ym){
+  const prev = addMonth(ym,-1), [y,m] = prev.split("-").map(Number), gevonden = [];
+  for (let d = new Date(y,m,0); d.getMonth() === m-1; d.setDate(d.getDate()-1)){
+    if (isSchooldag(d)) { gevonden.push(new Date(d)); if (gevonden.length === 2) break; }
+  }
+  const dl = gevonden[1]; dl.setHours(9,0,0,0); return dl;
+}
+
+/* ---------- menu ---------- */
+function normaliseer(items){
+  const lijn = [];
+  for (const it of items){ if (/^met\s/i.test(it) && lijn.length > 1) lijn[lijn.length-1] += " " + it; else lijn.push(it); }
+  return { soep: lijn[0] || "", hoofd: lijn.slice(1, lijn.length > 2 ? -1 : undefined), dessert: lijn.length > 2 ? lijn.at(-1) : "" };
+}
+function leesMenuWerkboek(wb){
+  const out = {}, dagnamen = DAGL.map(x => x.toLowerCase());
+  for (const naam of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[naam], {header:1, raw:true, defval:null});
+    const isDatumRij = r => (r||[]).some(v => v instanceof Date);
+    let i = 0;
+    while (i < rows.length){
+      const r = rows[i] || [];
+      if (!isDatumRij(r)) { i++; continue; }
+      const kolommen = r.map((v,j) => [j,v]).filter(([,v]) => v instanceof Date);
+      const blok = []; let k = i+1;
+      while (k < rows.length){
+        const rr = rows[k] || [];
+        if (isDatumRij(rr)) break;
+        if (rr.some(v => typeof v === "string" && dagnamen.includes(v.trim().toLowerCase()))) break;
+        blok.push(rr); k++;
+      }
+      for (const [j,d] of kolommen){
+        const items = blok.map(b => b[j]).filter(v => typeof v === "string" && v.trim() && !v.startsWith("=")).map(v => v.trim());
+        if (items.length) out[iso(new Date(d.getTime() + 12*3600e3))] = items;
+      }
+      i = k;
+    }
+  }
+  return out;
+}
+
+/* ---------- demo-inschrijvingen (fictief) ---------- */
+const NOV = "2026-11";
+const op = (wd, ym = NOV) => maaltijddagen(ym).filter(d => wd.includes(parse(d).getDay()));
+let volg = 0;
+const ins = (school, naam, klas, mode, m, s, ingediend) => ({id: ++volg, school, naam, klas, mode, maand: mode === "maand" ? NOV : null,
+  m, s, ingediend, beslissing: null});
+const SUBS = [
+  ins("KO","Lotte Verbeke","1KKA","vast",[1,2,4,5],[1,2,4,5],"2026-09-02T20:14"),
+  ins("KO","Mats De Smet","1KKA","maand",op([1,4]),[],"2026-10-21T19:03"),
+  ins("KO","Noor Janssens","1KKB","vast",[1,2,4,5],[],"2026-09-04T08:40"),
+  ins("KO","Vic Peeters","2KKA","vast",[],[1,2,4,5],"2026-09-03T21:30"),
+  ins("KO","Elise Wouters","2KKA","maand",op([2,5]),op([2,5]),"2026-10-25T10:12"),
+  ins("KO","Jules Maes","2KKB","vast",[1,4],[1,4],"2026-09-08T18:05"),
+  ins("KO","Fien Claes","3KKA","vast",[1,2,4,5],[1,2,4,5],"2026-09-01T19:47"),
+  ins("KO","Lou Van Damme","3KKB","maand",op([1,2,4,5]),[],"2026-10-29T14:20"),
+  ins("KO","Ruben Hermans","1A","vast",[1],[1],"2026-09-05T12:00"),
+  ins("KO","Amira El Idrissi","2A","vast",[],[1,2,4,5],"2026-09-02T17:22"),
+  ins("KO","Lena Mertens","3A","vast",[1,2,4,5],[1,2,4,5],"2026-09-01T20:10"),
+  ins("KO","Bas Goossens","3A","maand",op([1,2]),[],"2026-10-20T19:55"),
+  ins("KO","Bas Goossens","3A","maand",op([1,2,4]),op([1]),"2026-10-27T07:31"),
+  ins("KO","Yara Willems","4A","vast",[2,5],[],"2026-09-10T16:44"),
+  ins("KO","Finn De Wilde","5A","maand",[],op([1,2,4,5]),"2026-10-24T13:02"),
+  ins("KO","Emma Lambrecht","6A","vast",[1,2,4,5],[],"2026-09-02T21:05"),
+  ins("KO","Sofie","VW","vast",[1,4],[],"2026-09-15T09:00"),
+  ins("TE","Jade Vermeulen","1A","vast",[1,2,4,5],[],"2026-09-03T19:10"),
+  ins("TE","Arthur Smets","2A","maand",op([1,4]),op([1,4]),"2026-10-26T20:41"),
+  ins("TE","Olivia Dubois","3A","vast",[2,4],[2,4],"2026-09-06T11:15"),
+  ins("TE","Louis Michiels","4A","vast",[],[1,2,4,5],"2026-09-02T18:30"),
+  ins("TE","Mila Coppens","5A","maand",op([1,2,4,5]),[],"2026-10-28T21:58"),
+  ins("TE","Victor Aerts","6A","vast",[1,2,4,5],[1,2,4,5],"2026-09-01T17:05"),
+  ins("TE","Marc","VW","vast",[2,5],[],"2026-09-12T10:00")];
+
+/* ---------- toestand ---------- */
+const state = {
+  user: "christine", tab: "overzicht", month: NOV,
+  subs: SUBS, corr: {}, menu: {...MENU_RAW}, allergenen: []
+};
+// voorbeeldcorrecties
+state.corr["Lotte Verbeke|1KKA|2026-11-19|m"] = {actie:"af", door:"Christine", reden:"Ziek gemeld"};
+state.corr["Lotte Verbeke|1KKA|2026-11-19|s"] = {actie:"af", door:"Christine", reden:"Ziek gemeld"};
+state.corr["Ruben Hermans|1A|2026-11-26|m"] = {actie:"extra", door:"Christine", reden:"Extra dag, gemeld per mail"};
+
+const me = () => USERS.find(u => u.id === state.user);
+const school = () => me().school;
+const key = s => `${s.naam}|${s.klas}`;
+const afd = klas => klas === "VW" ? "vw" : /KK/.test(klas) ? "kleuter" : "lager";
+const klasIdx = klas => klas === "VW" ? 99 : KLASSEN[school()].indexOf(klas);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const euro = n => n.toLocaleString("nl-BE",{style:"currency",currency:"EUR"});
+const naamVan = s => s.klas === "VW" ? `${s.naam} (vrijwilliger)` : s.naam;
+
+/* ---------- rekenen ---------- */
+const isLaat = s => s.mode === "maand" && new Date(s.ingediend) > deadline(s.maand);
+const telt = s => s.beslissing !== "niet" && (!isLaat(s) || s.beslissing === "mee");
+const geldtVoor = (s, ym) => s.school === school() && (s.mode === "vast" || s.maand === ym);
+
+function actief(ym = state.month){
+  const groepen = {};
+  for (const s of state.subs) if (geldtVoor(s, ym)) (groepen[key(s)] ||= []).push(s);
+  const res = [];
+  for (const arr of Object.values(groepen)){
+    arr.sort((a,b) => a.ingediend.localeCompare(b.ingediend));
+    for (let i = arr.length-1; i >= 0; i--) if (telt(arr[i])) { res.push(arr[i]); break; }
+  }
+  return res.sort((a,b) => klasIdx(a.klas) - klasIdx(b.klas) || a.naam.localeCompare(b.naam));
+}
+function basis(s, d, t){
+  const lijst = s[t];
+  return s.mode === "vast" ? lijst.includes(parse(d).getDay()) : lijst.includes(d);
+}
+function eet(s, d, t){
+  const c = state.corr[`${key(s)}|${d}|${t}`];
+  if (c) return c.actie === "extra";
+  return basis(s, d, t);
+}
+const telDagen = (s, t, ym = state.month) => maaltijddagen(ym).filter(d => eet(s,d,t)).length;
+function bedrag(s){
+  if (s.klas === "VW") return 0;
+  return telDagen(s,"m") * PRIJS[afd(s.klas)] + telDagen(s,"s") * PRIJS.soep;
+}
+function aandacht(){
+  const laat = state.subs.filter(s => s.school === school() && isLaat(s) && !s.beslissing);
+  const groepen = {};
+  for (const s of state.subs) if (s.school === school() && s.mode === "maand" && s.maand === state.month) (groepen[key(s)] ||= []).push(s);
+  const dubbel = Object.values(groepen).filter(a => a.length > 1);
+  return {laat, dubbel};
+}
+
+/* ---------- weergave ---------- */
+const TABS = [["overzicht","Overzicht"],["inschrijvingen","Inschrijvingen"],["lijst","Lijst met namen"],["ocmw","OCMW-overzicht"],["afrekening","Afrekening"],["menu","Menu en allergenen"],["formulier","Ouderformulier"]];
+
+function renderChrome(){
+  const u = document.getElementById("user");
+  u.innerHTML = USERS.map(x => `<option value="${x.id}" ${x.id === state.user ? "selected" : ""}>${esc(x.naam)} · ${x.rol.toLowerCase()} ${SCHOOLS[x.school]}</option>`).join("");
+  const m = document.getElementById("month");
+  const opties = [NOV, "2026-12"];
+  m.innerHTML = opties.map(ym => `<option value="${ym}" ${ym === state.month ? "selected" : ""}>${maandNaam(ym)}</option>`).join("");
+  const n = aandacht().laat.length;
+  document.getElementById("tabs").innerHTML = TABS.map(([id,l]) =>
+    `<button class="tab" role="tab" data-tab="${id}" aria-selected="${state.tab === id}">${l}${id === "overzicht" && n ? `<span class="badge">${n}</span>` : ""}</button>`).join("");
+}
+
+function render(){
+  renderChrome();
+  const main = document.getElementById("main");
+  main.innerHTML = ({overzicht:vOverzicht, inschrijvingen:vInschrijvingen, lijst:vLijst, ocmw:vOcmw, afrekening:vAfrekening, menu:vMenu, formulier:vFormulier})[state.tab]();
+  if (state.tab === "formulier") syncFormulier();
+}
+
+function vOverzicht(){
+  const nu = new Date();
+  let doel = addMonth(`${nu.getFullYear()}-${pad(nu.getMonth()+1)}`, 1);
+  let dl = deadline(doel);
+  if (dl < nu) { doel = addMonth(doel,1); dl = deadline(doel); }
+  const dagenTot = Math.ceil((dl - nu) / 864e5);
+  const later = [1,2].map(n => { const ym = addMonth(doel,n), d = deadline(ym); return `<span>${MAANDEN[+ym.slice(5)-1]}: <b>${DAGK[d.getDay()]} ${d.getDate()} ${MAANDEN[d.getMonth()].slice(0,3)}</b></span>`; }).join("");
+
+  const act = actief(), dagen = maaltijddagen(state.month);
+  const kids = act.filter(s => s.klas !== "VW" && (telDagen(s,"m") || telDagen(s,"s")));
+  const totM = act.reduce((a,s) => a + telDagen(s,"m"), 0);
+  const totS = act.reduce((a,s) => a + telDagen(s,"s"), 0);
+  const totE = act.reduce((a,s) => a + bedrag(s), 0);
+
+  const perDag = dagen.map(d => ({d,
+    kl: act.filter(s => afd(s.klas) === "kleuter" && eet(s,d,"m")).length,
+    lg: act.filter(s => afd(s.klas) !== "kleuter" && eet(s,d,"m")).length,
+    so: act.filter(s => eet(s,d,"s")).length}));
+  const max = Math.max(1, ...perDag.map(x => x.kl + x.lg));
+  const bars = perDag.map(x => `<div class="bar" title="${kortDag(x.d)}: ${x.kl+x.lg} maaltijden, ${x.so} soep">
+      <span class="n">${x.kl + x.lg}</span>
+      <div class="stack" style="height:${Math.round((x.kl+x.lg)/max*120)+2}px">
+        <div class="seg lg" style="flex:${x.lg}"></div><div class="seg kl" style="flex:${x.kl}"></div></div>
+      <span class="lbl">${kortDag(x.d).replace(" ","<br>")}</span><span class="soup">${x.so} soep</span></div>`).join("");
+
+  const {laat, dubbel} = aandacht();
+  const corrN = Object.keys(state.corr).filter(k => k.includes(`|${state.month}-`) && act.some(s => k.startsWith(key(s)+"|"))).length;
+  const items = [
+    ...laat.map(s => `<div class="att-item"><span class="ico warn">!</span><strong>${esc(naamVan(s))} (${s.klas}) schreef in na de deadline</strong>
+      <p>Ingediend ${fmtTijd(s.ingediend)}, deadline was ${fmtTijd(deadline(s.maand))}. Telt pas mee als je het goedkeurt.</p>
+      <div class="row"><button class="btn small primary" data-beslis="mee" data-id="${s.id}">Toch meetellen</button><button class="btn small" data-beslis="niet" data-id="${s.id}">Niet meetellen</button></div></div>`),
+    ...dubbel.map(a => `<div class="att-item"><span class="ico info">2×</span><strong>${esc(a[0].naam)} (${a[0].klas}) werd ${a.length} keer ingeschreven</strong>
+      <p>De laatste inschrijving (${fmtTijd(a.at(-1).ingediend)}) telt. De eerdere staat bij Inschrijvingen als vervangen.</p></div>`),
+    corrN ? `<div class="att-item"><span class="ico info">✎</span><strong>${corrN} correctie${corrN>1?"s":""} deze maand</strong><p>Afmeldingen en extra dagen die het secretariaat met de hand aanpaste. Je ziet ze in de lijst met namen.</p></div>` : ""
+  ].filter(Boolean).join("") || `<p class="muted">Niets dat aandacht vraagt.</p>`;
+
+  return `
+  <section class="deadline">
+    <div class="cal" aria-hidden="true"><div class="m">${MAANDEN[dl.getMonth()].slice(0,3)}</div><div class="d">${dl.getDate()}</div><div class="t">09:00</div></div>
+    <div><h2>Inschrijvingen voor ${MAANDEN[+doel.slice(5)-1]} sluiten ${langeDatum(dl)} om 09:00</h2>
+      <p>${dagenTot > 1 ? `Nog ${dagenTot} dagen.` : dagenTot === 1 ? "Morgen." : "Vandaag."} De voorlaatste schooldag van de maand; weekends en vakanties tellen niet mee.</p>
+      <div class="later">Volgende deadlines ${later}</div></div>
+  </section>
+  <section class="stats">
+    <div class="stat"><div class="k">Ingeschreven kinderen</div><div class="v">${kids.length}</div><div class="s">${SCHOOLS[school()]}, ${maandNaam(state.month)}</div></div>
+    <div class="stat"><div class="k">Warme maaltijden</div><div class="v">${totM}</div><div class="s">over ${dagen.length} schooldagen</div></div>
+    <div class="stat"><div class="k">Soep</div><div class="v">${totS}</div><div class="s">kleuter en lager samen</div></div>
+    <div class="stat"><div class="k">Aan te rekenen</div><div class="v">${euro(totE)}</div><div class="s">zonder vrijwilligers</div></div>
+  </section>
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Maaltijden per dag</h2>
+      <div class="legend">${school() === "KO" ? `<span><i style="background:var(--kleuter)"></i>kleuters</span>` : ""}<span><i style="background:var(--accent)"></i>lager${act.some(s=>s.klas==="VW")?" + vrijwilligers":""}</span></div></div>
+      <div class="bars">${bars}</div></section>
+    <section class="card"><div class="card-head"><h2>Vraagt aandacht</h2></div><div class="att">${items}</div></section>
+  </div>`;
+}
+const fmtTijd = x => { const d = typeof x === "string" ? new Date(x) : x; return `${d.getDate()}/${d.getMonth()+1} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const dagSamenvatting = (s, t) => s.mode === "vast"
+  ? (s[t].length ? s[t].map(w => DAGK[w]).join(" ") : "—")
+  : (s[t].length ? `${s[t].length} dagen` : "—");
+
+function vInschrijvingen(){
+  const act = new Set(actief().map(s => s.id));
+  const lijst = state.subs.filter(s => geldtVoor(s, state.month)).sort((a,b) => b.ingediend.localeCompare(a.ingediend));
+  const status = s => {
+    if (isLaat(s) && !s.beslissing) return `<span class="pill warn">Na deadline · wacht</span>`;
+    if (s.beslissing === "niet") return `<span class="pill bad">Niet meegeteld</span>`;
+    if (!act.has(s.id)) return `<span class="pill mute">Vervangen door nieuwere</span>`;
+    if (s.beslissing === "mee") return `<span class="pill ok">Meegeteld na deadline</span>`;
+    return `<span class="pill ok">Actief</span>`;
+  };
+  const rijen = lijst.map(s => `<tr><td>${esc(naamVan(s))}</td><td>${s.klas === "VW" ? "—" : s.klas}</td>
+    <td>${s.mode === "vast" ? `<span class="pill lg">Vaste dagen</span>` : `<span class="pill kl">Per maand</span>`}</td>
+    <td>${dagSamenvatting(s,"m")}</td><td>${dagSamenvatting(s,"s")}</td><td class="num">${fmtTijd(s.ingediend)}</td><td>${status(s)}</td></tr>`).join("");
+
+  const corr = Object.entries(state.corr).filter(([k]) => k.split("|")[2].startsWith(state.month) && state.subs.some(s => s.school === school() && k.startsWith(key(s)+"|")))
+    .sort(([a],[b]) => a.split("|")[2].localeCompare(b.split("|")[2]));
+  const corrRijen = corr.map(([k,c]) => { const [n,kl,d,t] = k.split("|");
+    return `<tr><td>${esc(n)}</td><td>${kl === "VW" ? "—" : kl}</td><td>${kortDag(d)}</td><td>${t === "m" ? "Warme maaltijd" : "Soep"}</td>
+    <td>${c.actie === "af" ? `<span class="pill bad">Afgemeld</span>` : `<span class="pill ok">Extra dag</span>`}</td><td>${esc(c.reden)}</td><td>${esc(c.door)}</td>
+    <td><button class="btn small" data-undo="${esc(k)}">Ongedaan maken</button></td></tr>`; }).join("");
+
+  return `<section class="card"><div class="card-head"><h2>Inschrijvingen voor ${maandNaam(state.month)}</h2>
+      <p>Komen automatisch binnen via het Forms-formulier. Vaste inschrijvingen gelden elke maand tot de ouder iets wijzigt.</p></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Kind</th><th>Klas</th><th>Keuze</th><th>Warme maaltijd</th><th>Soep</th><th>Ingediend</th><th>Status</th></tr></thead><tbody>${rijen}</tbody></table></div></section>
+  <section class="card"><div class="card-head"><h2>Correcties</h2><p>Klik in de lijst met namen op een dag om een kind af te melden of een extra dag toe te voegen.</p></div>
+    ${corrRijen ? `<div class="tbl-wrap"><table><thead><tr><th>Kind</th><th>Klas</th><th>Dag</th><th>Wat</th><th>Correctie</th><th>Reden</th><th>Door</th><th></th></tr></thead><tbody>${corrRijen}</tbody></table></div>` : `<p class="muted">Nog geen correcties deze maand.</p>`}</section>`;
+}
+
+function matrix(titel, groep, t, metNamen){
+  const dagen = maaltijddagen(state.month);
+  let leden = actief().filter(s => groep === "kleuter" ? afd(s.klas) === "kleuter" : afd(s.klas) !== "kleuter");
+  leden = leden.filter(s => dagen.some(d => eet(s,d,t) || basis(s,d,t)) || Object.keys(state.corr).some(k => k.startsWith(key(s)+"|") && k.endsWith("|"+t)));
+  if (!leden.length && groep === "kleuter" && school() === "TE") return "";
+  const cls = groep === "kleuter" ? "kl" : "";
+  const head = `<tr><th class="name">${metNamen ? "Naam" : "Klas"}</th>${metNamen ? "<th>Klas</th>" : ""}${dagen.map(d => { const [a,b] = kortDag(d).split(" "); return `<th class="day">${a}<small>${b}</small></th>`; }).join("")}<th class="r">Totaal</th></tr>`;
+  let body = "";
+  if (metNamen){
+    let vwKop = false;
+    for (const s of leden){
+      if (s.klas === "VW" && !vwKop){ body += `<tr class="sec"><td class="name" colspan="${dagen.length+3}">Vrijwilligers</td></tr>`; vwKop = true; }
+      body += `<tr class="${s.klas === "VW" ? "vw" : ""}"><td class="name">${esc(s.naam)}</td><td>${s.klas === "VW" ? "—" : s.klas}</td>${dagen.map(d => {
+        const c = state.corr[`${key(s)}|${d}|${t}`], on = eet(s,d,t);
+        const st = c ? (c.actie === "af" ? "af" : "extra") : on ? "on " + cls : "";
+        const lbl = c ? (c.actie === "af" ? "×" : "+") : on ? "1" : "";
+        return `<td class="day"><button class="cell ${st}" data-cell="${esc(key(s))}|${d}|${t}" aria-label="${esc(s.naam)} ${kortDag(d)}: ${c ? (c.actie==="af"?"afgemeld":"extra dag") : on ? "eet mee" : "eet niet mee"}">${lbl}</button></td>`; }).join("")}
+        <td class="r num">${telDagen(s,t)}</td></tr>`;
+    }
+  } else {
+    const klassen = [...new Set(leden.map(s => s.klas))];
+    for (const kl of klassen){
+      const ks = leden.filter(s => s.klas === kl);
+      const tel = dagen.map(d => ks.filter(s => eet(s,d,t)).length);
+      body += `<tr class="${kl === "VW" ? "vw" : ""}"><td class="name">${kl === "VW" ? "Vrijwilligers" : kl}</td>${tel.map(n => `<td class="day num">${n || ""}</td>`).join("")}<td class="r num">${tel.reduce((a,b)=>a+b,0)}</td></tr>`;
+    }
+  }
+  const tot = dagen.map(d => leden.filter(s => eet(s,d,t)).length);
+  const foot = `<tr><td class="name">Totaal</td>${metNamen ? "<td></td>" : ""}${tot.map(n => `<td class="day num">${n}</td>`).join("")}<td class="r num">${tot.reduce((a,b)=>a+b,0)}</td></tr>`;
+  return `<section class="card"><div class="card-head"><h2>${titel}</h2><p>${leden.length} ${metNamen ? "personen" : "rijen"}</p></div>
+    <div class="tbl-wrap"><table class="mtx"><thead>${head}</thead><tbody>${body || `<tr><td colspan="${dagen.length+3}" class="muted">Niemand ingeschreven.</td></tr>`}</tbody><tfoot>${foot}</tfoot></table></div></section>`;
+}
+
+function vLijst(){
+  const kl = school() === "KO";
+  return `<section class="card"><div class="card-head"><h2>Lijst met namen · ${maandNaam(state.month)}</h2>
+      <button class="btn primary" data-export="lijst">Download als Excel</button></div>
+    <div class="legend"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>eet mee</span><span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i>extra dag (correctie)</span><span><i style="background:var(--bad-soft);border:1px solid var(--bad)"></i>afgemeld (correctie)</span><span>Klik op een dag om te corrigeren.</span></div></section>
+    ${kl ? matrix("Warme maaltijden kleuters","kleuter","m",true) : ""}
+    ${matrix("Warme maaltijden lagere school","lager","m",true)}
+    ${kl ? matrix("Soep kleuters","kleuter","s",true) : ""}
+    ${matrix("Soep lagere school","lager","s",true)}`;
+}
+
+function vOcmw(){
+  const kl = school() === "KO";
+  return `<section class="card"><div class="card-head"><h2>OCMW-overzicht · ${maandNaam(state.month)}</h2>
+      <button class="btn primary" data-export="ocmw">Download als Excel</button></div>
+    <p class="muted" style="margin:0">Aantallen per klas en per dag, zonder namen. Dit bestand stuur je door naar het OCMW.</p></section>
+    ${kl ? matrix("Warme maaltijden kleuters","kleuter","m",false) : ""}
+    ${matrix("Warme maaltijden lagere school","lager","m",false)}
+    ${kl ? matrix("Soep kleuters","kleuter","s",false) : ""}
+    ${matrix("Soep lagere school","lager","s",false)}`;
+}
+
+function vAfrekening(){
+  const act = actief().filter(s => telDagen(s,"m") || telDagen(s,"s"));
+  const kids = act.filter(s => s.klas !== "VW"), vw = act.filter(s => s.klas === "VW");
+  const rij = s => { const m = telDagen(s,"m"), so = telDagen(s,"s"), p = PRIJS[afd(s.klas)];
+    return `<tr><td>${esc(s.naam)}</td><td>${s.klas}</td><td class="r num">${m}</td><td class="r num">${m ? euro(m*p) : "—"}</td><td class="r num">${so}</td><td class="r num">${so ? euro(so*PRIJS.soep) : "—"}</td><td class="r num"><b>${euro(bedrag(s))}</b></td></tr>`; };
+  const sum = (f) => kids.reduce((a,s) => a + f(s), 0);
+  return `<section class="card"><div class="card-head"><h2>Maandafrekening · ${maandNaam(state.month)}</h2>
+      <button class="btn primary" data-export="afrekening">Download als Excel</button></div>
+    <div class="row" style="margin-bottom:12px">
+      ${school()==="KO" ? `<span class="pill kl">Maaltijd kleuter ${euro(PRIJS.kleuter)}</span>` : ""}<span class="pill lg">Maaltijd lager ${euro(PRIJS.lager)}</span><span class="pill mute">Soep ${euro(PRIJS.soep)}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Kind</th><th>Klas</th><th class="r">Maaltijden</th><th class="r">Bedrag</th><th class="r">Soep</th><th class="r">Bedrag</th><th class="r">Totaal</th></tr></thead>
+      <tbody>${kids.map(rij).join("")}</tbody>
+      <tfoot><tr><td>Totaal</td><td></td><td class="r num">${sum(s=>telDagen(s,"m"))}</td><td></td><td class="r num">${sum(s=>telDagen(s,"s"))}</td><td></td><td class="r num">${euro(sum(bedrag))}</td></tr></tfoot></table></div>
+    ${vw.length ? `<p class="note" style="margin:14px 0 0">Vrijwilligers: ${vw.map(s => `${esc(s.naam)} (${telDagen(s,"m")} maaltijden)`).join(", ")}. Ze tellen mee voor het OCMW, maar niet in de afrekening. De prijs voor vrijwilligers moet nog bepaald worden.</p>` : ""}
+  </section>`;
+}
+
+function vMenu(){
+  const dagen = Object.keys(state.menu).filter(d => d.startsWith(state.month) || (state.month === NOV && d.startsWith("2026-12"))).sort();
+  const weken = {};
+  for (const d of dagen){ const x = parse(d); x.setDate(x.getDate() - ((x.getDay()+6)%7)); (weken[iso(x)] ||= []).push(d); }
+  const weekHtml = Object.keys(weken).sort().map(ma => {
+    const cel = [0,1,2,3,4].map(i => { const x = parse(ma); x.setDate(x.getDate()+i); const d = iso(x), m = state.menu[d];
+      if (!m) return `<div class="dish none">${DAGL[x.getDay()]} ${x.getDate()}/${x.getMonth()+1}<br>${x.getDay() === 3 ? "geen maaltijden" : (vrijOp(d)?.[2] || "geen menu")}</div>`;
+      const n = normaliseer(m);
+      return `<div class="dish"><div class="dh">${DAGL[x.getDay()]} ${x.getDate()}/${x.getMonth()+1}</div><div class="soep">${esc(n.soep)}</div><ul>${n.hoofd.map(h => `<li>${esc(h)}</li>`).join("")}</ul>${n.dessert ? `<div class="des">${esc(n.dessert)}</div>` : ""}</div>`; }).join("");
+    const x = parse(ma);
+    return `<div class="week"><h3>Week van ${x.getDate()} ${MAANDEN[x.getMonth()]}</h3><div class="wk">${cel}</div></div>`; }).join("");
+  const dl = deadline(state.month);
+  return `<div class="grid2">
+    <section class="card"><div class="card-head"><h2>1. Menu van het OCMW</h2></div>
+      <div class="drop"><span class="muted">Sleep het Excel-bestand van het OCMW hierheen of kies het.</span>
+        <label class="btn">Excel kiezen<input id="menuFile" type="file" accept=".xlsx,.xls" hidden></label></div>
+      <p class="muted" style="margin:10px 0 0;font-size:13px">Ingelezen: ${Object.keys(state.menu).length} dagen, van ${kortDag(Object.keys(state.menu).sort()[0])} tot ${kortDag(Object.keys(state.menu).sort().at(-1))}. De app leest de datums; de eerste lijn is de soep, de laatste het dessert.</p></section>
+    <section class="card"><div class="card-head"><h2>2. Allergenenlijsten</h2></div>
+      <div class="drop"><span class="muted">De pdf's per week van het OCMW (YouMeal).</span>
+        <label class="btn">Pdf's kiezen<input id="allFile" type="file" accept="application/pdf" multiple hidden></label></div>
+      ${state.allergenen.length ? `<ul class="files">${state.allergenen.map((f,i) => `<li><span>${esc(f.name)}</span><button class="btn small" data-rmall="${i}">Verwijderen</button></li>`).join("")}</ul>` : `<p class="muted" style="margin:10px 0 0;font-size:13px">Nog geen bestanden. De allergenen staan als pictogrammen in de pdf; die worden achteraan het document voor de ouders gevoegd.</p>`}</section>
+  </div>
+  <section class="card"><div class="card-head"><div><h2>3. Document voor Gimme</h2><p>Menu van ${maandNaam(state.month)}, prijzen en uiterste inschrijfdatum, met de allergenenlijsten erachter.</p></div>
+      <button class="btn primary" data-pdf="1">Maak pdf voor Gimme</button></div>
+    <p class="note" style="margin:0">Inschrijven voor ${maandNaam(state.month)} kan tot <b>${langeDatum(dl)} om 09:00</b>.</p></section>
+  <section class="weeks">${weekHtml}</section>`;
+}
+
+function vFormulier(){
+  const ym = state.month, dl = deadline(ym), laat = new Date() > dl;
+  return `<section class="card"><div class="card-head"><div><h2>Zo ziet het formulier eruit voor ouders</h2>
+      <p>In de echte app is dit een Microsoft Forms-formulier. Hier kun je het uitproberen: je inschrijving verschijnt meteen bij Inschrijvingen.</p></div></div>
+    <form class="form" id="ouderForm" novalidate>
+      <div class="note">${SCHOOLS[school()]} · warme maaltijden en soep. Inschrijven voor ${maandNaam(ym)} kan tot ${langeDatum(dl)} om 09:00.${laat ? " <b>Die datum is voorbij: deze inschrijving komt binnen als 'na de deadline'.</b>" : ""}</div>
+      <div class="q"><label for="fNaam">Naam van je kind</label><input id="fNaam" type="text" required autocomplete="off" placeholder="Voornaam en naam"></div>
+      <div class="q"><label for="fKlas">Klas</label><select id="fKlas">${KLASSEN[school()].map(k => `<option>${k}</option>`).join("")}</select></div>
+      <div class="q"><span class="ql">Hoe wil je inschrijven?</span>
+        <label class="choice"><input type="radio" name="mode" value="vast" checked><span>Vaste dagen voor het hele schooljaar<small>Geldt elke maand tot je iets wijzigt.</small></span></label>
+        <label class="choice"><input type="radio" name="mode" value="maand"><span>Alleen voor ${maandNaam(ym)}<small>Je kiest de dagen van die maand.</small></span></label></div>
+      <div class="q" id="vastQ"><span class="ql">Op welke dagen?</span>
+        <div class="daygrid"><span></span><span class="h">Maaltijd</span><span class="h">Soep</span>
+          ${MAALTIJDDAGEN.map(w => `<span>${DAGL[w]}</span><input type="checkbox" name="vm" value="${w}" aria-label="${DAGL[w]} maaltijd"><input type="checkbox" name="vs" value="${w}" aria-label="${DAGL[w]} soep">`).join("")}</div></div>
+      <div class="q" id="maandQ" hidden><span class="ql">Welke dagen in ${maandNaam(ym)}?</span>
+        <div class="daylist"><div class="daygrid"><span></span><span class="h">Maaltijd</span><span class="h">Soep</span>
+          ${maaltijddagen(ym).map(d => `<span>${kortDag(d)}</span><input type="checkbox" name="mm" value="${d}" aria-label="${kortDag(d)} maaltijd"><input type="checkbox" name="ms" value="${d}" aria-label="${kortDag(d)} soep">`).join("")}</div></div></div>
+      <div class="row"><button class="btn primary" type="submit">Inschrijving versturen</button><span class="muted" id="fFout" role="alert"></span></div>
+    </form></section>`;
+}
+function syncFormulier(){
+  const f = document.getElementById("ouderForm"); if (!f) return;
+  const v = f.querySelector("input[name=mode]:checked").value;
+  document.getElementById("vastQ").hidden = v !== "vast";
+  document.getElementById("maandQ").hidden = v !== "maand";
+}
+
+/* ---------- exports ---------- */
+let dlApi;
+async function bewaar(filename, data){
+  if (!window.claude) {
+    // Gewone website (GitHub Pages): rechtstreeks downloaden
+    const url = URL.createObjectURL(new Blob([data]));
+    const a = Object.assign(document.createElement("a"), {href: url, download: filename});
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast(`${filename} wordt gedownload.`); return;
+  }
+  if (dlApi === undefined) { try { dlApi = (await window.claude.use?.("downloads")) ?? null; } catch { dlApi = null; } }
+  if (!dlApi) { toast("Downloaden kan niet in deze weergave. Open de demo op claude.ai."); return; }
+  try { await dlApi.save({filename, data}); toast(`${filename} staat klaar.`); }
+  catch (e) { if (e?.code === "declined") return; toast("Het bestand kon niet bewaard worden."); }
+}
+function matrixRijen(groep, t, metNamen){
+  const dagen = maaltijddagen(state.month);
+  const leden = actief().filter(s => (groep === "kleuter" ? afd(s.klas) === "kleuter" : afd(s.klas) !== "kleuter") && dagen.some(d => eet(s,d,t)));
+  const rows = [];
+  if (metNamen) for (const s of leden) rows.push([s.klas === "VW" ? `${s.naam} (vrijwilliger)` : s.naam, s.klas === "VW" ? "" : s.klas, ...dagen.map(d => eet(s,d,t) ? 1 : null), telDagen(s,t)]);
+  else for (const kl of [...new Set(leden.map(s => s.klas))]) { const ks = leden.filter(s => s.klas === kl), tel = dagen.map(d => ks.filter(s => eet(s,d,t)).length); rows.push([kl === "VW" ? "Vrijwilligers" : kl, ...tel, tel.reduce((a,b)=>a+b,0)]); }
+  const tot = dagen.map(d => leden.filter(s => eet(s,d,t)).length);
+  rows.push(metNamen ? ["Totaal", "", ...tot, tot.reduce((a,b)=>a+b,0)] : ["Totaal", ...tot, tot.reduce((a,b)=>a+b,0)]);
+  return rows;
+}
+function blad(titel, metNamen, t){
+  const dagen = maaltijddagen(state.month), kop = [...(metNamen ? ["Naam","Klas"] : ["Klas"]), ...dagen.map(kortDag), "Totaal"];
+  const aoa = [[`${titel} ${maandNaam(state.month).toUpperCase()} · ${SCHOOLS[school()]}`], []];
+  if (school() === "KO"){ aoa.push(["Kleuters"], kop, ...matrixRijen("kleuter",t,metNamen), []); }
+  aoa.push(["Lagere school"], kop, ...matrixRijen("lager",t,metNamen));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch: metNamen ? 26 : 14}, ...(metNamen ? [{wch:6}] : []), ...dagen.map(() => ({wch:8})), {wch:8}];
+  return ws;
+}
+function exporteer(soort){
+  const wb = XLSX.utils.book_new(), mnd = maandNaam(state.month), sch = SCHOOLS[school()];
+  let naam;
+  if (soort === "lijst" || soort === "ocmw"){
+    const metNamen = soort === "lijst";
+    XLSX.utils.book_append_sheet(wb, blad("WARME MAALTIJDEN", metNamen, "m"), "Warme maaltijden");
+    XLSX.utils.book_append_sheet(wb, blad("SOEP", metNamen, "s"), "Soep");
+    naam = `${metNamen ? "Maaltijden met namen" : "OCMW maaltijden"} ${mnd} - ${sch}.xlsx`;
+  } else {
+    const act = actief().filter(s => s.klas !== "VW" && (telDagen(s,"m") || telDagen(s,"s")));
+    const aoa = [[`Afrekening warme maaltijden en soep · ${mnd} · ${sch}`], [], ["Kind","Klas","Maaltijden","Prijs","Soep","Prijs soep","Totaal"]];
+    for (const s of act) aoa.push([s.naam, s.klas, telDagen(s,"m"), PRIJS[afd(s.klas)], telDagen(s,"s"), PRIJS.soep, bedrag(s)]);
+    aoa.push(["Totaal","", act.reduce((a,s)=>a+telDagen(s,"m"),0), "", act.reduce((a,s)=>a+telDagen(s,"s"),0), "", act.reduce((a,s)=>a+bedrag(s),0)]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = [{wch:24},{wch:6},{wch:11},{wch:7},{wch:7},{wch:9},{wch:9}];
+    XLSX.utils.book_append_sheet(wb, ws, "Afrekening");
+    naam = `Afrekening maaltijden ${mnd} - ${sch}.xlsx`;
+  }
+  bewaar(naam, new Uint8Array(XLSX.write(wb, {bookType:"xlsx", type:"array"})));
+}
+
+async function maakPdf(){
+  const {PDFDocument, StandardFonts, rgb} = PDFLib;
+  const doc = await PDFDocument.create();
+  const f = await doc.embedFont(StandardFonts.Helvetica), fb = await doc.embedFont(StandardFonts.HelveticaBold);
+  const schoon = s => String(s).replace(/[–—]/g,"-").replace(/[  ]/g," ").replace(/[^\x20-\x7E -ÿ€]/g,"");
+  const W = 841.89, H = 595.28, M = 36, colW = (W - 2*M) / 4;
+  const blauw = rgb(0.11,0.33,0.77), grijs = rgb(0.35,0.39,0.5), lijn = rgb(0.84,0.87,0.92);
+  let page = doc.addPage([W,H]), y = H - M;
+  const tekst = (s, x, yy, size, font = f, color = rgb(0.08,0.13,0.23)) => page.drawText(schoon(s), {x, y:yy, size, font, color});
+  const wrap = (s, size, font, max) => { const woorden = schoon(s).split(" "), out = []; let r = "";
+    for (const w of woorden){ const t = r ? r + " " + w : w; if (font.widthOfTextAtSize(t,size) > max && r){ out.push(r); r = w; } else r = t; } if (r) out.push(r); return out; };
+  const kop = () => {
+    tekst(`Warme maaltijden en soep - ${maandNaam(state.month)}`, M, y - 20, 20, fb, blauw); y -= 40;
+    const dl = deadline(state.month);
+    tekst(`${SCHOOLS[school()]}  |  Inschrijven kan tot ${langeDatum(dl)} om 09:00.`, M, y, 10.5, fb); y -= 15;
+    tekst(`Prijzen: soep ${euro(PRIJS.soep)}${school()==="KO" ? `, maaltijd kleuter ${euro(PRIJS.kleuter)}` : ""}, maaltijd lager ${euro(PRIJS.lager)}. Op woensdag zijn er geen maaltijden.`, M, y, 9.5, f, grijs); y -= 22;
+  };
+  kop();
+  const dagen = Object.keys(state.menu).filter(d => d.startsWith(state.month)).sort();
+  const weken = {};
+  for (const d of dagen){ const x = parse(d); x.setDate(x.getDate() - ((x.getDay()+6)%7)); (weken[iso(x)] ||= []).push(d); }
+  for (const ma of Object.keys(weken).sort()){
+    const kolommen = MAALTIJDDAGEN.map(w => { const x = parse(ma); x.setDate(x.getDate() + w - 1); const d = iso(x), m = state.menu[d];
+      if (!m) return {d, x, lijnen: [[vrijOp(d)?.[2] || "Geen menu", "q"]]};
+      const n = normaliseer(m), l = [];
+      wrap(n.soep, 9, fb, colW - 14).forEach(t => l.push([t,"s"]));
+      n.hoofd.forEach(h => wrap(h, 9, f, colW - 14).forEach(t => l.push([t,"h"])));
+      if (n.dessert) wrap(n.dessert, 9, f, colW - 14).forEach(t => l.push([t,"q"]));
+      return {d, x, lijnen: l}; });
+    const hoogte = 18 + Math.max(...kolommen.map(k => k.lijnen.length)) * 11.5 + 14;
+    if (y - hoogte < M){ page = doc.addPage([W,H]); y = H - M; }
+    page.drawLine({start:{x:M, y:y+4}, end:{x:W-M, y:y+4}, thickness:0.8, color:lijn});
+    kolommen.forEach((k,i) => {
+      const x0 = M + i*colW; let yy = y - 12;
+      tekst(`${DAGL[k.x.getDay()]} ${k.x.getDate()}/${k.x.getMonth()+1}`, x0, yy, 9.5, fb, blauw); yy -= 14;
+      for (const [t,soort] of k.lijnen){ tekst(t, x0, yy, 9, soort === "s" ? fb : f, soort === "q" ? grijs : rgb(0.08,0.13,0.23)); yy -= 11.5; }
+    });
+    y -= hoogte;
+  }
+  tekst("De allergenen per gerecht vind je op de volgende pagina's.", M, Math.max(y - 6, M - 10), 9, f, grijs);
+  for (const file of state.allergenen){
+    try { const src = await PDFDocument.load(await file.arrayBuffer()); const pages = await doc.copyPages(src, src.getPageIndices()); pages.forEach(p => doc.addPage(p)); }
+    catch { toast(`${file.name} kon niet worden toegevoegd.`); }
+  }
+  bewaar(`Menu ${maandNaam(state.month)} - ${SCHOOLS[school()]}.pdf`, await doc.save());
+}
+
+/* ---------- interactie ---------- */
+let toastT;
+function toast(msg){ const t = document.getElementById("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab){ state.tab = tab.dataset.tab; try { localStorage.setItem("lonm-tab", state.tab); } catch {} render(); return; }
+  const cell = e.target.closest("[data-cell]");
+  if (cell){
+    const [n,kl,d,t] = cell.dataset.cell.split("|"), k = cell.dataset.cell;
+    const s = actief().find(x => x.naam === n && x.klas === kl);
+    if (state.corr[k]) { delete state.corr[k]; toast(`Correctie voor ${n} op ${kortDag(d)} ongedaan gemaakt.`); }
+    else { const was = basis(s,d,t); state.corr[k] = {actie: was ? "af" : "extra", door: me().naam, reden: was ? "Afgemeld" : "Extra dag"};
+      toast(was ? `${n} is afgemeld voor ${kortDag(d)}.` : `${n} eet extra mee op ${kortDag(d)}.`); }
+    render(); return;
+  }
+  const b = e.target.closest("[data-beslis]");
+  if (b){ const s = state.subs.find(x => x.id === +b.dataset.id); s.beslissing = b.dataset.beslis;
+    toast(s.beslissing === "mee" ? `${s.naam} telt mee voor ${maandNaam(s.maand)}.` : `De inschrijving van ${s.naam} telt niet mee.`); render(); return; }
+  const u = e.target.closest("[data-undo]");
+  if (u){ delete state.corr[u.dataset.undo]; toast("Correctie ongedaan gemaakt."); render(); return; }
+  const x = e.target.closest("[data-export]");
+  if (x){ exporteer(x.dataset.export); return; }
+  if (e.target.closest("[data-pdf]")){ maakPdf().catch(() => toast("De pdf kon niet gemaakt worden.")); return; }
+  const r = e.target.closest("[data-rmall]");
+  if (r){ state.allergenen.splice(+r.dataset.rmall, 1); render(); return; }
+});
+
+document.addEventListener("change", async e => {
+  if (e.target.id === "user"){ state.user = e.target.value; render(); toast(`Je ziet nu alleen de gegevens van ${SCHOOLS[school()]}.`); return; }
+  if (e.target.id === "month"){ state.month = e.target.value; render(); return; }
+  if (e.target.name === "mode"){ syncFormulier(); return; }
+  if (e.target.id === "menuFile" && e.target.files[0]){
+    try { const wb = XLSX.read(await e.target.files[0].arrayBuffer(), {cellDates:true}); const nieuw = leesMenuWerkboek(wb), n = Object.keys(nieuw).length;
+      if (!n) { toast("Geen menu gevonden. Controleer of het het Excel-bestand van het OCMW is."); return; }
+      Object.assign(state.menu, nieuw); render(); const ds = Object.keys(nieuw).sort(); toast(`Menu ingelezen: ${n} dagen, ${kortDag(ds[0])} tot ${kortDag(ds.at(-1))}.`);
+    } catch { toast("Dit bestand kon niet gelezen worden."); }
+    return;
+  }
+  if (e.target.id === "allFile"){ state.allergenen.push(...[...e.target.files]); render(); toast(`${e.target.files.length} allergenenlijst${e.target.files.length > 1 ? "en" : ""} toegevoegd.`); return; }
+});
+
+document.addEventListener("submit", e => {
+  if (e.target.id !== "ouderForm") return;
+  e.preventDefault();
+  const f = e.target, naam = f.querySelector("#fNaam").value.trim(), mode = f.querySelector("input[name=mode]:checked").value;
+  const waarden = n => [...f.querySelectorAll(`input[name=${n}]:checked`)].map(i => mode === "vast" ? +i.value : i.value);
+  const m = waarden(mode === "vast" ? "vm" : "mm"), s = waarden(mode === "vast" ? "vs" : "ms");
+  const fout = f.querySelector("#fFout");
+  if (!naam){ fout.textContent = "Vul de naam van je kind in."; return; }
+  if (!m.length && !s.length){ fout.textContent = "Kies minstens één dag voor een maaltijd of soep."; return; }
+  const nu = new Date(), stamp = `${iso(nu)}T${pad(nu.getHours())}:${pad(nu.getMinutes())}`;
+  const sub = {id: ++volg, school: school(), naam, klas: f.querySelector("#fKlas").value, mode, maand: mode === "maand" ? state.month : null, m, s, ingediend: stamp, beslissing: null};
+  state.subs.push(sub);
+  state.tab = "inschrijvingen"; render();
+  toast(isLaat(sub) ? `Inschrijving van ${naam} ontvangen, na de deadline. Ze wacht op goedkeuring.` : `Inschrijving van ${naam} ontvangen.`);
+});
+
+try { const t = localStorage.getItem("lonm-tab"); if (t && TABS.some(([id]) => id === t)) state.tab = t; } catch {}
+render();
+</script>
+
+</body>
+</html>
